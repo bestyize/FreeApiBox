@@ -156,6 +156,7 @@ impl UpstreamClient {
             "opencode" if super::opencode_compat::free_user_agent(provider_id, &url).is_some() =>
                 super::opencode_compat::free_user_agent(provider_id, &url).expect("checked endpoint").to_string(),
             "codex" => CODEX_USER_AGENT.to_string(),
+            "github" => super::github_compat::USER_AGENT.to_string(),
             "claude" => CLAUDE_USER_AGENT.to_string(),
             "codebuddy-cn" => CODEBUDDY_CN_USER_AGENT.to_string(),
             "codebuddy-intl" => CODEBUDDY_INTL_USER_AGENT.to_string(),
@@ -186,7 +187,8 @@ impl UpstreamClient {
         mut headers: HeaderMap,
         timeout: Duration,
     ) -> Result<reqwest::Response, UpstreamError> {
-        let agent = super::opencode_compat::free_user_agent(provider_id, &url).map(str::to_string).unwrap_or_else(user_agent);
+        let agent = super::opencode_compat::free_user_agent(provider_id, &url).map(str::to_string)
+            .unwrap_or_else(|| if provider_id == "github" { super::github_compat::USER_AGENT.to_string() } else { user_agent() });
         headers.insert(USER_AGENT, HeaderValue::from_str(&agent).expect("static user agent"));
         self.send_routed(provider_id, &url, |http| {
             let rb = http.get(url.clone()).headers(headers.clone()).timeout(timeout);

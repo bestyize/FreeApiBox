@@ -729,8 +729,7 @@ pub async fn probe_live(target: &UpstreamTarget, credential: &str) -> ProbeOutco
         ),
         "github" => {
             extra_headers.push(("Accept", "application/json"));
-            extra_headers.push(("X-GitHub-Api-Version", "2022-11-28"));
-            extra_headers.push(("User-Agent", "GitHubCopilotChat/0.26.7"));
+            extra_headers.extend(crate::upstream::github_compat::CLIENT_HEADERS.iter().copied());
             (
                 "https://api.github.com/copilot_internal/user".to_string(),
                 "GET",
@@ -886,7 +885,10 @@ async fn check_oauth_connection(
         Ok(t) => t,
         Err(_) => return fail("该提供商尚未配置上游端点，无法探测".to_string()),
     };
-    match probe_connection(&target, inference_token).await {
+    // Copilot's account/usage endpoint takes the GitHub account token; its
+    // inference endpoints take the separately exchanged Copilot token.
+    let probe_token = if provider.id == "github" { tokens.access_token.expose() } else { inference_token };
+    match probe_connection(&target, probe_token).await {
         ProbeOutcome::Reachable { latency_ms } => TestResult {
             connection_id: conn.id.clone(),
             provider_id: Some(provider.id.clone()),
@@ -1119,7 +1121,11 @@ async fn try_fetch_upstream_models(
                 let tokens = oauth.get_valid_token(&provider.id, r).await
                     .map_err(|e| AppError::msg(format!("OAuth 令牌不可用：{}", e.code())))?;
                 if provider.id == "codex" { codex_account_id = tokens.chatgpt_account_id(); }
-                Some(tokens.access_token.expose().to_owned())
+                let token = if provider.id == "github" {
+                    tokens.extra_value("copilot_token")
+                        .ok_or_else(|| AppError::msg("Copilot 推理令牌尚未兑换，请重新授权"))?
+                } else { tokens.access_token.expose() };
+                Some(token.to_owned())
             } else {
                 vault.get(r)?
             }
@@ -1178,6 +1184,9 @@ async fn try_fetch_upstream_models(
     } else {
         crate::upstream::client::user_agent()
     });
+    if provider.id == "github" {
+        rb = rb.headers(crate::upstream::github_compat::headers());
+    }
     if provider.id == "codex" {
         rb = rb.header("originator", "codex_cli_rs").header("version", crate::upstream::client::CODEX_CLI_VERSION);
         if let Some(account_id) = codex_account_id {

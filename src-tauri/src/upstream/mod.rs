@@ -18,6 +18,7 @@ pub mod code_assist;
 pub mod codebuddy_compat;
 pub mod endpoint;
 pub mod gemini_compat;
+pub(crate) mod github_compat;
 mod iflow_signing;
 pub mod ollama_compat;
 pub mod openai_compat;
@@ -469,6 +470,9 @@ fn build_headers<A: Adapter + ?Sized>(
         headers.insert("anthropic-beta", HeaderValue::from_str(&flags.join(","))
             .map_err(|_| UpstreamError::Config("invalid Anthropic beta header".into()))?);
     }
+    if target.provider_id == "github" {
+        headers.extend(github_compat::headers());
+    }
     // Keep OpenCode Free's v2 wire headers separate from paid Zen and custom endpoints.
     opencode_compat::add_headers(target, &mut headers);
     if target.provider_id == "codex" {
@@ -517,6 +521,26 @@ async fn reply_from(resp: reqwest::Response) -> Result<UpstreamReply, UpstreamEr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copilot_ide_headers_cover_every_native_transport_and_model_lists() {
+        for kind in [AdapterKind::OpenAiCompatible, AdapterKind::AnthropicCompatible, AdapterKind::OpenAiResponses] {
+            let mut target = UpstreamTarget { provider_id: "github".into(), connection_id: "c".into(),
+                endpoint: ResolvedEndpoint::new(kind, Url::parse("https://api.githubcopilot.com").unwrap(), AuthStyle::Bearer),
+                api_key: Some(Secret::new("copilot-test-token")), extra_headers: vec![], timeout: Duration::from_secs(10) };
+            for stream in [false, true] {
+                let headers = build_headers(kind.adapter(), &target, None, stream).unwrap();
+                assert_eq!(headers["editor-version"], "vscode/1.110.0");
+                assert_eq!(headers["editor-plugin-version"], "copilot-chat/0.38.0");
+                assert_eq!(headers["copilot-integration-id"], "vscode-chat");
+                assert_eq!(headers["authorization"], "Bearer copilot-test-token");
+            }
+            target.provider_id = "custom-other".into();
+            let headers = build_headers(kind.adapter(), &target, None, false).unwrap();
+            assert!(!headers.contains_key("editor-version"));
+            assert!(!headers.contains_key("copilot-integration-id"));
+        }
+    }
 
     #[test]
     fn secret_debug_is_redacted() {

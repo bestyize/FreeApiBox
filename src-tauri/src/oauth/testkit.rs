@@ -159,6 +159,11 @@ async fn device_token(State(f): State<Arc<Fake>>) -> Response {
 }
 
 async fn copilot_token(State(f): State<Arc<Fake>>, headers: HeaderMap) -> Response {
+    for &(name, value) in crate::upstream::github_compat::CLIENT_HEADERS {
+        if headers.get(name).and_then(|v| v.to_str().ok()) != Some(value) {
+            return json_reply(400, json!({"error":"missing IDE client header"}));
+        }
+    }
     if !headers.get("authorization").and_then(|v| v.to_str().ok())
         .is_some_and(|value| value.starts_with("token ACCESS-")) {
         return json_reply(401, json!({"error":"unauthorized"}));

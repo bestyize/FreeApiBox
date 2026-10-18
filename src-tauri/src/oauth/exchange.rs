@@ -49,10 +49,11 @@ pub async fn github_copilot_token(
 ) -> Result<TokenSet, OAuthError> {
     let url = cfg.exchange_endpoint(creds)?;
     let account_token = tokens.access_token.expose();
-    let headers = ExtraHeaders(vec![
+    let mut headers = ExtraHeaders(vec![
         ("Authorization".into(), format!("token {account_token}")),
-        ("X-GitHub-Api-Version".into(), "2022-11-28".into()),
     ]);
+    headers.0.extend(crate::upstream::github_compat::CLIENT_HEADERS.iter()
+        .map(|&(name, value)| (name.to_string(), value.to_string())));
     let reply = http::get_with(client, &cfg.id, &url, &headers).await?;
     if !(200..300).contains(&reply.status) {
         return Err(exchange_error(&cfg.id, &reply, account_token));

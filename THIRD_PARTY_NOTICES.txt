@@ -7,6 +7,12 @@ src-tauri/resources/provider_catalog.json, provider_status.json, oauth_providers
   URLs, public client ids of PKCE/device flows and model names from the same
   registry. No client secrets were copied.
 
+src-tauri/src/upstream/github_compat.rs
+  GitHub Copilot IDE header values follow 9Router's
+  open-sse/providers/registry/github.js and open-sse/executors/github.js.
+  Source: https://github.com/decolua/9router
+  The MIT license below applies to this adaptation as well.
+
 src-tauri/src/upstream/opencode_compat.rs
   OpenCode Free request shaping and reversible tool-name mapping are adapted
   from 9Router commit 87a74e1bda3677193c6f71a7e2100c90311f0689, in particular

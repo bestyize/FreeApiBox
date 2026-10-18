@@ -273,8 +273,7 @@ async fn fetch_github(
         .get("https://api.github.com/copilot_internal/user")
         .header("Authorization", format!("token {token}"))
         .header("Accept", "application/json")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .header("User-Agent", "GitHubCopilotChat/0.26.7")
+        .headers(crate::upstream::github_compat::headers())
         .send_routed("github", Duration::from_secs(12))
         .await
         .map_err(|e| AppError::msg(format!("GitHub Copilot 网络请求失败：{e}")))?;
