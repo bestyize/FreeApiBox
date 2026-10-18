@@ -1,6 +1,6 @@
 [package]
 name = "router-desktop"
-version = "0.8.18"
+version = "0.8.19"
 description = "AI API aggregation, conversion and proxy desktop client"
 edition = "2021"
 rust-version = "1.98"
